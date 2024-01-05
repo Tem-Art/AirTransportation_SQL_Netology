@@ -85,3 +85,83 @@ group by
 order by
     cte1.departure_airport;
 --- Вывел необходимые данные, учел только те дни, когда вылетело более 1 самолета.
+
+
+
+
+-- Задание 5. Найти процентное соотношение перелётов по маршрутам от общего количества перелётов, с использованием в решении оконной функции.
+-- В результат вывести названия аэропортов и процентное отношение.
+ 
+select ad.airport_name as departure_airport, ad2.airport_name as arrival_airport,
+round ((count(flight_id) * 100.0 / sum (count(flight_id)) over ()), 3) as percent
+from flights f
+join airports ad on f.departure_airport = ad.airport_code 
+join airports ad2 on f.arrival_airport = ad2.airport_code 
+group by 1, 2 
+order by percent desc 
+
+
+
+
+-- Задание 6. Выведите количество пассажиров по каждому коду сотового оператора (три символа после +7).
+
+select
+    substring (phone_number, position('+7' in phone_number) + 2, 3) as region_code,
+    count (*) as region_code_count
+from (
+    select contact_data ->>'phone' as phone_number
+    from tickets
+) t
+group by region_code
+order by region_code;
+
+
+
+
+-- Задание 7. Классифицировать финансовые обороты (сумму стоимости перелетов) по маршрутам:
+-- • до 50 млн – low
+-- • от 50 млн включительно до 150 млн – middle
+-- • от 150 млн включительно – high
+-- Вывести в результат количество маршрутов в каждом полученном классе.
+
+select classification,
+	   count (*) as amount_of_directions
+from (
+    select
+        case
+            when sum (amount) < 50000000 then 'Low'
+            when sum (amount) >= 50000000 and sum (amount) < 150000000 then 'Middle'
+            else 'High'
+        end as classification
+    from flights f
+    join ticket_flights tf on tf.flight_id = f.flight_id
+    where f.actual_departure is not null
+    group by f.flight_no
+    ) qq
+group by classification
+order by amount_of_directions
+
+
+
+
+-- Задание 8. Вычислить медиану стоимости перелетов, медиану стоимости бронирования и отношение медианы бронирования к медиане стоимости перелетов,
+-- результат округлит до сотых. 
+
+with median_flight as (
+    select
+        percentile_cont (0.5) within group (order by amount)::numeric as qq
+    from
+        ticket_flights
+),
+	median_reservation as (
+    select
+        percentile_cont (0.5) within group (order by total_amount)::numeric as ww
+    from
+        bookings
+)
+select
+    round (median_flight.qq, 2) as median_flight_cost,
+    round (median_reservation.ww, 2) as median_reservation_cost,
+    round (median_reservation.ww / median_flight.qq, 2) as ratio
+from median_flight
+cross join median_reservation;
